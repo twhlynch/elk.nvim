@@ -17,11 +17,13 @@ Example usage for `lazy.nvim`.
 
 ```lua
 return {
-	"twhlynch/elk.nvim"
+	"twhlynch/elk.nvim",
 	opts = {
-		binary = "elk",
-		debounce = 400,
-		filetypes = { "asm", "lc3" },
+		binary = "elk", -- path to elk binary
+		debounce = 400, -- debounce milliseconds in between runs
+		filetypes = { "asm", "lc3" }, -- filetypes to attach to
+		level = "info", -- minimum diagnostic level to report
+		permit = "", -- disable diagnostics for this policy set
 	},
 }
 ```
