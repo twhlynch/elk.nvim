@@ -19,16 +19,24 @@ Example usage for `lazy.nvim`.
 return {
 	"twhlynch/elk.nvim",
 	opts = {
-		binary = "elk", -- path to elk binary
-		debounce = 50, -- debounce milliseconds in between runs
-		filetypes = { "asm", "lc3" }, -- filetypes to attach to
-		level = "info", -- minimum diagnostic level to report
-		permit = "", -- disable diagnostics for this policy set
+		-- command or path to elk binary
+		binary = "elk",
+		-- debounce milliseconds in between runs
+		debounce = 50,
+		-- filetypes to attach to
+		filetypes = { "asm", "lc3" },
+		-- minimum diagnostic level to report
+		-- "err" to ignore warnings and info, "warn" to ignore info
+		level = "info",
+		-- disable diagnostics for this policy set
+		-- e.g., "+laser,extension.stack_instructions"
+		-- see https://codeberg.org/dxrcy/elk/src/branch/master/lib/policies.zig
+		permit = "",
 	},
 }
 ```
 
-You may also want to set `lc3` to be used for `.asm` and `.lc3` files somewhere in your config.
+You will also need to set `lc3` to be used for `.asm` and `.lc3` files somewhere in your config.
 
 ```lua
 vim.filetype.add({
