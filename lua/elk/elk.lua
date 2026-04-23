@@ -59,7 +59,7 @@ function M.run(bufnr, cmd)
 		return
 	end
 
-	local args = { cmd, path, "--quiet" }
+	local args = { cmd, path, "--check", "--quiet" }
 	if require("elk.options").get().level == "err" then
 		args[#args + 1] = "--relaxed"
 	end
