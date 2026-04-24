@@ -30,6 +30,21 @@ function M.get()
 	return M.options
 end
 
+local function is_string_int_table(t)
+	if type(t) ~= "table" then
+		return false
+	end
+	for k, v in pairs(t) do
+		if type(k) ~= "string" then
+			return false
+		end
+		if type(v) ~= "number" or v % 1 ~= 0 then
+			return false
+		end
+	end
+	return true
+end
+
 --- validate the config
 ---@return boolean
 function M.validate()
@@ -63,6 +78,10 @@ function M.validate()
 
 	if type(M.options.permit) ~= "string" then
 		return error("option 'permit' must be a string")
+	end
+
+	if not is_string_int_table(M.options.trap_aliases) then
+		return error("option 'trap_aliases' must be a table of string:int")
 	end
 
 	-- validate binary exists
