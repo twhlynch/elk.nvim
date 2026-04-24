@@ -6,7 +6,7 @@ local M = {}
 --- @field filetypes string[] filetypes to attach to
 --- @field level "info" | "warn" | "err" minimum diagnostic level to report
 --- @field permit string disable diagnostics for this policy set
---- @field trap_aliases table | nil override trap aliases to parse
+--- @field trap_aliases table<string, integer> | nil override trap aliases to parse
 
 --- @type Elk.Options.options
 M.options = {
