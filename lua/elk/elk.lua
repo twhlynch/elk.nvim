@@ -40,6 +40,16 @@ function M.parse(output)
 	return diagnostics
 end
 
+--- @param aliases table
+--- @return string
+local function serialize_trap_aliases(aliases)
+	local items = {}
+	for alias, vect in pairs(aliases) do
+		table.insert(items, string.format("%s=0x%02x", alias, vect))
+	end
+	return table.concat(items, ",")
+end
+
 --- elk runner
 --- @param bufnr integer
 --- @param cmd string path to elk
@@ -64,6 +74,14 @@ function M.run(bufnr, cmd)
 	local args = { cmd, path, "--check", "--quiet", "--permit", options.permit }
 	if options.level == "err" then
 		args[#args + 1] = "--relaxed"
+	end
+	if options.trap_aliases ~= nil then
+		args[#args + 1] = "--trap-aliases"
+		if type(options.trap_aliases) == "string" then
+			args[#args + 1] = options.trap_aliases
+		elseif type(options.trap_aliases) == "table" then
+			args[#args + 1] = serialize_trap_aliases(options.trap_aliases)
+		end
 	end
 
 	-- run elk on file
