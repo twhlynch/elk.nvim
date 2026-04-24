@@ -80,7 +80,10 @@ function M.validate()
 		return error("option 'permit' must be a string")
 	end
 
-	if type(M.options.trap_aliases) ~= "string" and not is_string_int_table(M.options.trap_aliases) then
+	if M.options.trap_aliases ~= nil
+		and type(M.options.trap_aliases) ~= "string"
+		and not is_string_int_table(M.options.trap_aliases)
+	then
 		return error("option 'trap_aliases' must be a string or a table<string, int>")
 	end
 
