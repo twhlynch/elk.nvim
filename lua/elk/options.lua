@@ -7,6 +7,7 @@ local M = {}
 --- @field level "info" | "warn" | "err" minimum diagnostic level to report
 --- @field permit string | string[] disable diagnostics for this policy set
 --- @field trap_aliases string | table<string, integer> | nil override trap aliases to parse
+--- @field completion boolean enable keyword completion
 
 --- @type Elk.Options.options
 M.options = {
@@ -16,6 +17,7 @@ M.options = {
 	level = "info",
 	permit = {},
 	trap_aliases = nil,
+	completion = true,
 }
 
 --- sets plugin options keeping defaults if unspecified
@@ -94,11 +96,16 @@ function M.validate()
 		return error("option 'permit' must be a string or a string[]")
 	end
 
-	if M.options.trap_aliases ~= nil
+	if --
+		M.options.trap_aliases ~= nil
 		and type(M.options.trap_aliases) ~= "string"
 		and not is_string_int_table(M.options.trap_aliases)
 	then
 		return error("option 'trap_aliases' must be a string or a table<string, int>")
+	end
+
+	if type(M.options.completion) ~= "boolean" then
+		return error("option 'completion' must be a boolean")
 	end
 
 	-- validate binary exists

@@ -39,6 +39,10 @@ return {
 		-- can be a table like { putn = 0x26, reg = 0x27, ... }
 		-- or a string like "putn=0x26,reg=0x27,..."
 		trap_aliases = nil,
+		-- keyword autocomplete for blink, nvim-cmp, coq_nvim, and omnifunc
+		-- set to false to disable
+		-- for blink, you will need to add "elk" to sources.default and add `elk = { module = "elk.cmp" }` in sources.providers
+		completion = true,
 	},
 }
 ```
