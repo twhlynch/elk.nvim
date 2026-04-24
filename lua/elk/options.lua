@@ -6,7 +6,7 @@ local M = {}
 --- @field filetypes string[] filetypes to attach to
 --- @field level "info" | "warn" | "err" minimum diagnostic level to report
 --- @field permit string disable diagnostics for this policy set
---- @field trap_aliases table<string, integer> | nil override trap aliases to parse
+--- @field trap_aliases string | table<string, integer> | nil override trap aliases to parse
 
 --- @type Elk.Options.options
 M.options = {
@@ -80,8 +80,8 @@ function M.validate()
 		return error("option 'permit' must be a string")
 	end
 
-	if not is_string_int_table(M.options.trap_aliases) then
-		return error("option 'trap_aliases' must be a table of string:int")
+	if type(M.options.trap_aliases) ~= "string" and not is_string_int_table(M.options.trap_aliases) then
+		return error("option 'trap_aliases' must be a string or a table<string, int>")
 	end
 
 	-- validate binary exists

@@ -77,7 +77,11 @@ function M.run(bufnr, cmd)
 	end
 	if options.trap_aliases ~= nil then
 		args[#args + 1] = "--trap-aliases"
-		args[#args + 1] = serialize_trap_aliases(options.trap_aliases)
+		if type(options.trap_aliases) == "string" then
+			args[#args + 1] = options.trap_aliases
+		elseif type(options.trap_aliases) == "table" then
+			args[#args + 1] = serialize_trap_aliases(options.trap_aliases)
+		end
 	end
 
 	-- run elk on file
