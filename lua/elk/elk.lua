@@ -109,6 +109,9 @@ function M.attach(args)
 	local bufnr = args.buf
 	local options = require("elk.options").get()
 
+	-- setup completion
+	require("elk.cmp").setup_file()
+
 	-- always run on changing text out of insert mode
 	vim.api.nvim_create_autocmd({ "TextChanged" }, {
 		group = M.group,
@@ -175,6 +178,9 @@ function M.setup()
 		pattern = options.filetypes,
 		callback = M.attach,
 	})
+
+	-- setup completion
+	require("elk.cmp").setup()
 end
 
 return M
