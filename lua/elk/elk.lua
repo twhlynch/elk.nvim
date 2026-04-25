@@ -167,14 +167,24 @@ function M.attach(args)
 	vim.api.nvim_create_autocmd("BufDelete", {
 		group = M.group,
 		buffer = bufnr,
-		callback = function()
-			utils.stop_debounce(bufnr)
-			vim.diagnostic.reset(M.ns, bufnr)
-		end,
+		callback = M.detach,
 	})
 
 	-- initial run
 	M.run(bufnr, options.binary)
+end
+
+--- detach from and cleanup a buffer
+--- @param args vim.api.keyset.create_autocmd.callback_args
+function M.detach(args)
+	local bufnr = args.buf
+
+	-- clear diagnostics and debounce timer
+	utils.stop_debounce(bufnr)
+	vim.diagnostic.reset(M.ns, bufnr)
+
+	-- clear autocmds for buffer
+	vim.api.nvim_clear_autocmds({ group = M.group, buffer = bufnr })
 end
 
 --- setup plugin
