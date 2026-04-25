@@ -5,7 +5,7 @@ local M = {}
 --- @field debounce integer debounce milliseconds in between runs
 --- @field filetypes string[] filetypes to attach to
 --- @field level "info" | "warn" | "err" minimum diagnostic level to report
---- @field permit string disable diagnostics for this policy set
+--- @field permit string | string[] disable diagnostics for this policy set
 --- @field trap_aliases string | table<string, integer> | nil override trap aliases to parse
 
 --- @type Elk.Options.options
@@ -14,7 +14,7 @@ M.options = {
 	debounce = 50,
 	filetypes = { "asm", "lc3" },
 	level = "info",
-	permit = "",
+	permit = {},
 	trap_aliases = nil,
 }
 
@@ -28,6 +28,18 @@ end
 --- @return Elk.Options.options
 function M.get()
 	return M.options
+end
+
+local function is_string_list(t)
+	if type(t) ~= "table" then
+		return false
+	end
+	for _, v in ipairs(t) do
+		if type(v) ~= "string" then
+			return false
+		end
+	end
+	return true
 end
 
 local function is_string_int_table(t)
@@ -76,8 +88,10 @@ function M.validate()
 		return error("option 'level' must be one of 'info', 'warn', or 'err'")
 	end
 
-	if type(M.options.permit) ~= "string" then
-		return error("option 'permit' must be a string")
+	if type(M.options.permit) ~= "string"
+		and not is_string_list(M.options.permit)
+	then
+		return error("option 'permit' must be a string or a string[]")
 	end
 
 	if M.options.trap_aliases ~= nil

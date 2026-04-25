@@ -40,6 +40,15 @@ function M.parse(output)
 	return diagnostics
 end
 
+--- @param permit string | string[]
+--- @return string
+local function serialize_permit(permit)
+	if type(permit) == "string" then
+		return permit
+	end
+	return table.concat(permit, ",")
+end
+
 --- @param aliases table
 --- @return string
 local function serialize_trap_aliases(aliases)
@@ -71,7 +80,12 @@ function M.run(bufnr, cmd)
 
 	local options = require("elk.options").get()
 
-	local args = { cmd, path, "--check", "--quiet", "--permit", options.permit }
+	local args = {
+		cmd,
+		"--check", path,
+		"--quiet",
+		"--permit", serialize_permit(options.permit),
+	}
 	if options.level == "err" then
 		args[#args + 1] = "--relaxed"
 	end
