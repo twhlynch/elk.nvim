@@ -20,7 +20,9 @@ function M.parse(output)
 
 	for _, line in ipairs(lines) do
 		-- extract parts
-		local sev, msg, ls, cs, le, ce = line:match("^(%a+):%s+(.-)%s+%(Line (%d+):(%d+)-(%d+):(%d+)%)")
+		-- Error: Some error message (/path/to/file.asm:1:2-3:4)
+		-- for now, ignore the file. TODO: actually use the file path
+		local sev, msg, file, ls, cs, le, ce = line:match("^(%a+):%s+(.-)%s+%((.+):(%d+):(%d+)-(%d+):(%d+)%)$")
 		local severity = sev and severity_map[sev]
 
 		-- insert diagnostic
