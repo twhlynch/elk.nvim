@@ -42,16 +42,21 @@ end
 
 --- @param permit string | string[]
 --- @return string
-local function serialize_permit(permit)
+function M.serialize_permit(permit)
 	if type(permit) == "string" then
 		return permit
 	end
 	return table.concat(permit, ",")
 end
 
+--- @param permit string
+function M.deserialize_permit(permit)
+	return vim.split(permit, ",", { plain = true })
+end
+
 --- @param aliases string | table<string, integer>
 --- @return string
-local function serialize_trap_aliases(aliases)
+function M.serialize_trap_aliases(aliases)
 	if type(aliases) == "string" then
 		return aliases
 	end
@@ -60,6 +65,19 @@ local function serialize_trap_aliases(aliases)
 		table.insert(items, string.format("%s=0x%02x", alias, vect))
 	end
 	return table.concat(items, ",")
+end
+
+--- @param str string
+--- @return table<string, integer>
+function M.deserialize_trap_aliases(str)
+	local aliases = {}
+	for pair in str:gmatch("[^,]+") do
+		local alias, vect = pair:match("([^=]+)=0x(%x+)")
+		if alias and vect then
+			aliases[alias] = tonumber(vect)
+		end
+	end
+	return aliases
 end
 
 --- elk runner
@@ -88,14 +106,14 @@ function M.run(bufnr, cmd)
 		cmd,
 		"--check", path,
 		"--quiet",
-		"--permit", serialize_permit(options.permit),
+		"--permit", M.serialize_permit(options.permit),
 	}
 	if options.level == "err" then
 		args[#args + 1] = "--relaxed"
 	end
 	if options.trap_aliases ~= nil then
 		args[#args + 1] = "--trap-aliases"
-		args[#args + 1] = serialize_trap_aliases(options.trap_aliases)
+		args[#args + 1] = M.serialize_trap_aliases(options.trap_aliases)
 	end
 
 	-- run elk on file
