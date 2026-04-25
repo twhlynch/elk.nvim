@@ -40,9 +40,21 @@ function M.parse(output)
 	return diagnostics
 end
 
---- @param aliases table
+--- @param permit string | string[]
+--- @return string
+local function serialize_permit(permit)
+	if type(permit) == "string" then
+		return permit
+	end
+	return table.concat(permit, ",")
+end
+
+--- @param aliases string | table<string, integer>
 --- @return string
 local function serialize_trap_aliases(aliases)
+	if type(aliases) == "string" then
+		return aliases
+	end
 	local items = {}
 	for alias, vect in pairs(aliases) do
 		table.insert(items, string.format("%s=0x%02x", alias, vect))
@@ -71,17 +83,18 @@ function M.run(bufnr, cmd)
 
 	local options = require("elk.options").get()
 
-	local args = { cmd, path, "--check", "--quiet", "--permit", options.permit }
+	local args = {
+		cmd,
+		"--check", path,
+		"--quiet",
+		"--permit", serialize_permit(options.permit),
+	}
 	if options.level == "err" then
 		args[#args + 1] = "--relaxed"
 	end
 	if options.trap_aliases ~= nil then
 		args[#args + 1] = "--trap-aliases"
-		if type(options.trap_aliases) == "string" then
-			args[#args + 1] = options.trap_aliases
-		elseif type(options.trap_aliases) == "table" then
-			args[#args + 1] = serialize_trap_aliases(options.trap_aliases)
-		end
+		args[#args + 1] = serialize_trap_aliases(options.trap_aliases)
 	end
 
 	-- run elk on file
