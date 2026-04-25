@@ -77,10 +77,11 @@ function M.run(bufnr, cmd)
 	end
 	if options.trap_aliases ~= nil then
 		args[#args + 1] = "--trap-aliases"
-		if type(options.trap_aliases) == "string" then
-			args[#args + 1] = options.trap_aliases
-		elseif type(options.trap_aliases) == "table" then
-			args[#args + 1] = serialize_trap_aliases(options.trap_aliases)
+		local trap_aliases = options.trap_aliases
+		if type(trap_aliases) == "string" then
+			args[#args + 1] = trap_aliases
+		elseif type(trap_aliases) == "table" then
+			args[#args + 1] = serialize_trap_aliases(trap_aliases)
 		end
 	end
 
