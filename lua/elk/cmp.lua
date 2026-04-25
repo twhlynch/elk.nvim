@@ -1,36 +1,83 @@
+local elk = require("elk.elk")
 local utils = require("elk.utils")
 
 local M = {}
 
--- stylua: ignore
-M.keywords = {
-	-- arithmetic
-	"add", "and", "not",
-	-- branch
-	"br", "brn", "brz", "brp", "brnz", "brzp", "brnp", "brnzp",
-	-- jump
-	"jmp", "ret", "jsr", "jsrr",
-	-- load
-	"lea", "ld", "ldi", "ldr",
-	-- store
-	"st", "sti", "str",
-	-- trap
-	"trap",
+--- build keywords based on config
+--- @return string[]
+function M.get_keywords()
+	-- stylua: ignore
+	local keywords = {
+		-- arithmetic
+		"add", "and", "not",
+		-- branch
+		"br", "brn", "brz", "brp", "brnz", "brzp", "brnp", "brnzp",
+		-- jump
+		"jmp", "ret", "jsr", "jsrr",
+		-- load
+		"lea", "ld", "ldi", "ldr",
+		-- store
+		"st", "sti", "str",
+		-- trap
+		"trap",
+		-- debug extension
+		"putn", "reg",
+		-- misc
+		-- "rti",
+		-- directive
+		".ORIG", ".FILL", ".BLKW", ".STRINGZ", ".END",
+		-- registers
+		"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
+	}
+
+	local options = require("elk.options").get()
+	local trap_aliases = options.trap_aliases
+	local permit = options.permit
+
+	-- trap aliases
+	if trap_aliases ~= nil then
+		-- add trap aliases from config
+		local traps = {}
+
+		if type(trap_aliases) == "string" then
+			traps = elk.deserialize_trap_aliases(trap_aliases)
+		else
+			traps = trap_aliases
+		end
+
+		for alias, _ in pairs(traps) do
+			table.insert(keywords, alias)
+		end
+	else
+		-- no config, use defaults
+		local base_traps = { "getc", "out", "puts", "in", "putsp", "halt" }
+
+		for _, trap in ipairs(base_traps) do
+			table.insert(keywords, trap)
+		end
+	end
+
 	-- stack extension
-	"push", "pop", "call", "rets",
-	-- traps
-	"getc", "out", "puts", "in", "putsp", "halt",
-	-- debug extension
-	"putn", "reg",
-	-- misc
-	-- "rti",
-	-- elci
-	"chat", "getp", "setp", "getb", "setb", "geth",
-	-- directive
-	".ORIG", ".FILL", ".BLKW", ".STRINGZ", ".END",
-	-- registers
-	"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
-}
+	local stack_extension = { "push", "pop", "call", "rets" }
+	local permit_list = {}
+
+	if type(permit) == "table" then
+		permit_list = permit
+	elseif type(permit) == "string" then
+		permit_list = elk.deserialize_permit(permit)
+	end
+
+	if vim.tbl_contains(permit_list, "extension.stack_instructions") then
+		-- using stack_instructions, add keywords
+		for _, instr in ipairs(stack_extension) do
+			table.insert(keywords, instr)
+		end
+	end
+
+	return keywords
+end
+
+M.keywords = M.get_keywords()
 
 --- get keyword matches for a given prefix
 --- @param prefix string
