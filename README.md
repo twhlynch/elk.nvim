@@ -31,7 +31,7 @@ return {
 		-- disable diagnostics for this policy set
 		-- can be a table like { "+laser", "extension.stack_instructions", ... }
 		-- or a string like "+laser,extension.stack_instructions"
-		-- see https://codeberg.org/dxrcy/elk/src/branch/master/lib/policies.zig
+		-- see https://codeberg.org/dxrcy/elk/src/branch/master/DOCS.md#policies
 		permit = {},
 		-- override trap aliases to parse
 		-- can prevent warnings when using non-standard traps such as for ELCI integration
