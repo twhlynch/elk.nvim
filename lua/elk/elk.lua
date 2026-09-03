@@ -12,6 +12,7 @@ function M.parse(output)
 	local severity_map = {
 		Error = vim.diagnostic.severity.ERROR,
 		Warning = vim.diagnostic.severity.WARN,
+		Info = vim.diagnostic.severity.INFO,
 	}
 
 	-- parse output
