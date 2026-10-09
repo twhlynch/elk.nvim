@@ -8,7 +8,8 @@ Diagnostics provider for LC-3 Assembly bridging the Elk LC-3 toolchain.
 - Automatic diagnostics updates on buffer changes.
 - Keyword completion supporting `blink`, `nvim-cmp`, `coq_nvim`, and `omnifunc`.
 - Listing info (address, hex, binary) beside line numbers.
-- `:Elk start|stop|listing` user command.
+- Per line execution, read, and write counts from emulation.
+- `:Elk start|stop|analytics|listing` user command.
 
 ## Requirements
 

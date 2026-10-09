@@ -1,7 +1,14 @@
 local M = {}
 
+local analytics = require("elk.analytics")
 local listing = require("elk.listing")
 local utils = require("elk.utils")
+
+--- @type table<integer, boolean>
+M.attached = {} --- attached buffers
+
+--- emulation timeout in milliseconds
+local ANALYTICS_TIMEOUT = 5000
 
 --- parse elk --quiet output
 --- @param output string
@@ -177,11 +184,161 @@ function M.run(bufnr, cmd)
 	)
 end
 
+--- emulate a buffer once and show per line execution info
+--- @param bufnr integer
+--- @param cmd string path to elk
+--- @param options Elk.Options.options
+--- @param stdin string input fed to the program's stdin
+local function emulate(bufnr, cmd, options, stdin)
+	local path = temp_source(bufnr)
+	if not path then
+		return
+	end
+	local base = vim.fn.fnamemodify(path, ":r")
+	local analytics_path = vim.fn.tempname() .. ".json"
+
+	-- stdin content, redirected into the emulation below
+	local stdin_path = vim.fn.tempname() .. ".in"
+	local stdin_file = io.open(stdin_path, "w")
+	if not stdin_file then
+		os.remove(path)
+		return
+	end
+	stdin_file:write(stdin)
+	stdin_file:close()
+
+	-- elk rejects piped stdin (TermiosFailed), so emulate through sh with a
+	-- file redirect: stdin never comes from nvim (GETC would steal
+	-- keystrokes) and the timeout still kills elk itself
+	local emu_opts = { text = true, timeout = ANALYTICS_TIMEOUT }
+
+	--- flags shared by every emulation, elk only reads policies at runtime
+	--- @param input string[] leading args, a source file or --emulate <obj>
+	--- @return string[]
+	local function emulate_args(input)
+		local args = vim.list_slice(input, 1, #input)
+		args[#args + 1] = "--quiet"
+		args[#args + 1] = "--permit"
+		args[#args + 1] = M.serialize_permit(options.permit)
+		args[#args + 1] = "--analytics"
+		args[#args + 1] = analytics_path
+		if options.level == "err" then
+			args[#args + 1] = "--relaxed"
+		end
+		return args
+	end
+
+	--- run elk with stdin coming from the temp file
+	--- @param args string[] elk arguments without the binary
+	--- @return string[]
+	local function with_stdin(args)
+		local parts = { "exec", vim.fn.shellescape(cmd) }
+		for _, arg in ipairs(args) do
+			parts[#parts + 1] = vim.fn.shellescape(arg)
+		end
+		return { "sh", "-c", table.concat(parts, " ") .. " < " .. vim.fn.shellescape(stdin_path) }
+	end
+
+	--- remove the run's temp files
+	local function cleanup()
+		os.remove(path)
+		os.remove(stdin_path)
+		os.remove(base .. ".obj")
+		os.remove(base .. ".sym")
+		os.remove(base .. ".lst")
+	end
+
+	--- abandon a failed run and tell the user why
+	--- @param result vim.SystemCompleted|nil
+	local function fail(result)
+		cleanup()
+		os.remove(analytics_path)
+		analytics.clear(bufnr)
+		local detail = ""
+		if result then
+			detail = vim.trim(utils.strip_ansi((result.stderr or "") .. (result.stdout or "")))
+			detail = vim.split(detail, "\n")[1] or ""
+		end
+		if detail ~= "" then
+			vim.notify("[elk] analytics failed: " .. detail, vim.log.levels.WARN)
+		else
+			vim.notify("[elk] analytics run failed or timed out", vim.log.levels.WARN)
+		end
+	end
+
+	--- handle a finished emulation
+	--- @param result vim.SystemCompleted
+	local function finish(result)
+		if not vim.api.nvim_buf_is_valid(bufnr) then
+			cleanup()
+			os.remove(analytics_path)
+			return
+		end
+		if result.code ~= 0 or vim.fn.filereadable(analytics_path) == 0 then
+			fail(result)
+			return
+		end
+		local contents = table.concat(vim.fn.readfile(analytics_path))
+		os.remove(analytics_path)
+		cleanup()
+
+		local ok, json = pcall(vim.json.decode, contents)
+		if ok then
+			analytics.show(bufnr, json)
+		else
+			analytics.clear(bufnr)
+		end
+	end
+
+	if options.trap_aliases == nil then
+		-- assemble and emulate in one step
+		vim.system(with_stdin(emulate_args({ path })), emu_opts, vim.schedule_wrap(finish))
+		return
+	end
+
+	-- elk rejects trap aliases on emulate, so assemble with them first
+	-- (matching M.run) then emulate the .obj
+	vim.system(
+		assemble_args(cmd, path, options, { "--trap-aliases", M.serialize_trap_aliases(options.trap_aliases) }),
+		{ text = true },
+		vim.schedule_wrap(function(result)
+			if result.code ~= 0 or vim.fn.filereadable(base .. ".obj") == 0 then
+				fail(result)
+				return
+			end
+			vim.system(with_stdin(emulate_args({ "--emulate", base .. ".obj" })), emu_opts, vim.schedule_wrap(finish))
+		end)
+	)
+end
+
+--- emulate a buffer once and show per line execution info, prompting for the
+--- input to feed the program's stdin
+--- @param bufnr integer
+--- @param cmd string path to elk
+function M.analytics(bufnr, cmd)
+	if not vim.api.nvim_buf_is_valid(bufnr) then
+		return
+	end
+
+	vim.ui.input({ prompt = "elk stdin: " }, function(input)
+		if input == nil then
+			return
+		end
+		if not vim.api.nvim_buf_is_valid(bufnr) then
+			return
+		end
+		-- an empty prompt means the program reads no input at all
+		emulate(bufnr, cmd, require("elk.options").get(), input ~= "" and (input .. "\n") or "")
+	end)
+end
+
 --- setup a buffer
 --- @param args vim.api.keyset.create_autocmd.callback_args
 function M.attach(args)
 	local bufnr = args.buf
 	local options = require("elk.options").get()
+
+	M.attached[bufnr] = true
 
 	-- setup completion
 	require("elk.cmp").setup_file()
@@ -244,10 +401,15 @@ function M.detach(args)
 	utils.stop_debounce(bufnr)
 	vim.diagnostic.reset(M.ns, bufnr)
 
+	-- clear listing and restore gutter
+	M.attached[bufnr] = nil
 	listing.clear(bufnr)
 	for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
 		listing.restore(win)
 	end
+
+	-- clear analytics
+	analytics.clear(bufnr)
 
 	-- clear autocmds for buffer
 	vim.api.nvim_clear_autocmds({ group = M.group, buffer = bufnr })
@@ -268,6 +430,13 @@ function M.command(args)
 		if vim.api.nvim_buf_is_loaded(bufnr) then
 			M.detach({ buf = bufnr })
 		end
+	elseif args.args == "analytics" then
+		-- emulate once and show execution info
+		if vim.api.nvim_buf_is_loaded(bufnr) and M.attached[bufnr] then
+			M.analytics(bufnr, require("elk.options").get().binary)
+		else
+			vim.notify("[elk] buffer is not attached, run :Elk start first", vim.log.levels.WARN)
+		end
 	elseif args.args == "listing" then
 		-- flip the listing gutter on and off
 		listing.toggle()
@@ -285,6 +454,7 @@ function M.setup()
 	M.ns = vim.api.nvim_create_namespace("elk")
 
 	listing.setup()
+	analytics.setup()
 
 	-- attach to files matching the specified types
 	vim.api.nvim_create_autocmd("FileType", {
@@ -322,13 +492,13 @@ function M.setup()
 	-- setup completion
 	require("elk.cmp").setup()
 
-	-- setup :Elk start|stop|listing command
+	-- setup :Elk start|stop|analytics|listing command
 	vim.api.nvim_create_user_command("Elk", M.command, {
 		nargs = 1,
 		complete = function(arg_lead)
 			return vim.tbl_filter(function(cmd)
 				return cmd:find("^" .. vim.pesc(arg_lead))
-			end, { "start", "stop", "listing" })
+			end, { "start", "stop", "analytics", "listing" })
 		end,
 	})
 end

@@ -256,7 +256,7 @@ local function build_cache(bufnr, map)
 	M.cache[bufnr] = { lines = rendered, blank = format(nil), virtual = virtual }
 end
 
---- draw the row under each spanned source line
+--- draw the row under each spanned source line, carrying any stats its extra addresses collected
 --- @param bufnr integer
 function M.render_virtual(bufnr)
 	if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -271,9 +271,10 @@ function M.render_virtual(bufnr)
 	end
 
 	local line_count = vim.api.nvim_buf_line_count(bufnr)
+	local analytics = require("elk.analytics")
 	for lnum in pairs(cache.virtual) do
 		if lnum <= line_count then
-			vim.api.nvim_buf_set_extmark(bufnr, M.ns, lnum - 1, 0, { virt_lines = { {} } })
+			vim.api.nvim_buf_set_extmark(bufnr, M.ns, lnum - 1, 0, { virt_lines = { analytics.virt_chunks(bufnr, lnum) or {} } })
 		end
 	end
 end
