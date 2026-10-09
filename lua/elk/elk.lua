@@ -1,5 +1,6 @@
 local M = {}
 
+local listing = require("elk.listing")
 local utils = require("elk.utils")
 
 --- parse elk --quiet output
@@ -83,6 +84,41 @@ function M.deserialize_trap_aliases(str)
 	return aliases
 end
 
+--- write a buffer to a temp source file
+--- @param bufnr integer
+--- @return string | nil path, nil when the write fails
+local function temp_source(bufnr)
+	local ext = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":e")
+	local path = vim.fn.tempname() .. (ext ~= "" and ("." .. ext) or ".asm")
+	if not utils.write_file(path, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)) then
+		return nil
+	end
+	return path
+end
+
+--- flags shared by every elk assemble invocation
+--- @param cmd string path to elk
+--- @param path string source file
+--- @param options Elk.Options.options
+--- @param extra string[] flags added after the common ones
+--- @return string[]
+local function assemble_args(cmd, path, options, extra)
+	-- stylua: ignore
+	local args = {
+		cmd,
+		"--assemble", path,
+		"--quiet",
+		"--permit", M.serialize_permit(options.permit),
+	}
+	for _, arg in ipairs(extra) do
+		args[#args + 1] = arg
+	end
+	if options.level == "err" then
+		args[#args + 1] = "--relaxed"
+	end
+	return args
+end
+
 --- elk runner
 --- @param bufnr integer
 --- @param cmd string path to elk
@@ -91,33 +127,19 @@ function M.run(bufnr, cmd)
 		return
 	end
 
-	-- create temp file
-	local ext = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":e")
-	local path = vim.fn.tempname() .. (ext ~= "" and ("." .. ext) or ".asm")
-
-	-- write buffer content to file
-	local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-	local success = utils.write_file(path, lines)
-	if not success then
+	local path = temp_source(bufnr)
+	if not path then
 		return
 	end
 
 	local options = require("elk.options").get()
-
-	-- stylua: ignore
-	local args = {
-		cmd,
-		"--check", path,
-		"--quiet",
-		"--permit", M.serialize_permit(options.permit),
-	}
-	if options.level == "err" then
-		args[#args + 1] = "--relaxed"
-	end
+	local extra = { "--export-listing" }
 	if options.trap_aliases ~= nil then
-		args[#args + 1] = "--trap-aliases"
-		args[#args + 1] = M.serialize_trap_aliases(options.trap_aliases)
+		extra[#extra + 1] = "--trap-aliases"
+		extra[#extra + 1] = M.serialize_trap_aliases(options.trap_aliases)
 	end
+
+	local args = assemble_args(cmd, path, options, extra)
 
 	-- run elk on file
 	vim.system(
@@ -131,9 +153,26 @@ function M.run(bufnr, cmd)
 				return
 			end
 
+			-- remove obj if generated
+			local obj_path = vim.fn.fnamemodify(path, ":r") .. ".obj"
+			if vim.fn.filereadable(obj_path) == 1 then
+				os.remove(obj_path)
+			end
+
 			-- parse diagnostics
 			local output = (result.stderr or "") .. (result.stdout or "")
-			vim.diagnostic.set(M.ns, bufnr, M.parse(output))
+			local diagnostics = M.parse(output)
+			vim.diagnostic.set(M.ns, bufnr, diagnostics)
+
+			-- remove and parse listing
+			local listing_path = vim.fn.fnamemodify(path, ":r") .. ".lst"
+			if vim.fn.filereadable(listing_path) == 1 then
+				local lst_lines = vim.fn.readfile(listing_path)
+				os.remove(listing_path)
+				listing.show(bufnr, lst_lines)
+			else
+				listing.clear(bufnr)
+			end
 		end)
 	)
 end
@@ -205,6 +244,11 @@ function M.detach(args)
 	utils.stop_debounce(bufnr)
 	vim.diagnostic.reset(M.ns, bufnr)
 
+	listing.clear(bufnr)
+	for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+		listing.restore(win)
+	end
+
 	-- clear autocmds for buffer
 	vim.api.nvim_clear_autocmds({ group = M.group, buffer = bufnr })
 end
@@ -224,6 +268,9 @@ function M.command(args)
 		if vim.api.nvim_buf_is_loaded(bufnr) then
 			M.detach({ buf = bufnr })
 		end
+	elseif args.args == "listing" then
+		-- flip the listing gutter on and off
+		listing.toggle()
 	else
 		vim.notify("[elk] Invalid argument: " .. args.args, vim.log.levels.ERROR)
 	end
@@ -237,6 +284,8 @@ function M.setup()
 	M.group = vim.api.nvim_create_augroup("ElkDiagnostics", { clear = true })
 	M.ns = vim.api.nvim_create_namespace("elk")
 
+	listing.setup()
+
 	-- attach to files matching the specified types
 	vim.api.nvim_create_autocmd("FileType", {
 		group = M.group,
@@ -244,16 +293,42 @@ function M.setup()
 		callback = M.attach,
 	})
 
+	vim.api.nvim_create_autocmd({ "WinEnter", "BufWinEnter" }, {
+		group = M.group,
+		callback = function()
+			local win = vim.api.nvim_get_current_win()
+			listing.record_winopts(win)
+			listing.ensure(win)
+		end,
+	})
+	vim.api.nvim_create_autocmd("OptionSet", {
+		group = M.group,
+		pattern = { "number", "relativenumber" },
+		callback = function()
+			listing.record_winopts(vim.api.nvim_get_current_win())
+		end,
+	})
+	vim.api.nvim_create_autocmd("WinClosed", {
+		group = M.group,
+		callback = function(args)
+			local win = tonumber(args.match)
+			if win then
+				listing.orig_statuscolumn[win] = nil
+				listing.winopts[win] = nil
+			end
+		end,
+	})
+
 	-- setup completion
 	require("elk.cmp").setup()
 
-	-- setup :Elk start|stop command
+	-- setup :Elk start|stop|listing command
 	vim.api.nvim_create_user_command("Elk", M.command, {
 		nargs = 1,
 		complete = function(arg_lead)
 			return vim.tbl_filter(function(cmd)
 				return cmd:find("^" .. vim.pesc(arg_lead))
-			end, { "start", "stop" })
+			end, { "start", "stop", "listing" })
 		end,
 	})
 end

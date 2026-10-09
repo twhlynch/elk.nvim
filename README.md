@@ -7,7 +7,8 @@ Diagnostics provider for LC-3 Assembly bridging the Elk LC-3 toolchain.
 - Error and warning diagnostics for LC-3 Assembly files, powered by Elk.
 - Automatic diagnostics updates on buffer changes.
 - Keyword completion supporting `blink`, `nvim-cmp`, `coq_nvim`, and `omnifunc`.
-- `:Elk start|stop` user command.
+- Listing info (address, hex, binary) beside line numbers.
+- `:Elk start|stop|listing` user command.
 
 ## Requirements
 
@@ -45,6 +46,14 @@ return {
 		-- set to false to disable
 		-- for blink, you will need to add "elk" to sources.default and add `elk = { module = "elk.cmp" }` in sources.providers
 		completion = true,
+		-- listing info (address, hex, binary) shown left of the line numbers
+		-- toggle at runtime with :Elk listing
+		listing = {
+			enabled = true,
+			address = true,
+			hex = true,
+			binary = true,
+		},
 	},
 }
 ```

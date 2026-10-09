@@ -28,6 +28,30 @@ function M.write_file(path, lines)
 	return true
 end
 
+--- pad a string right with spaces
+--- @param str string|nil
+--- @param width integer
+--- @return string
+function M.pad_right(str, width)
+	str = str or ""
+	local w = vim.fn.strdisplaywidth(str)
+	if w < width then
+		return str .. string.rep(" ", width - w)
+	elseif w == width then
+		return str
+	end
+	return vim.fn.strcharpart(str, 0, width)
+end
+
+--- check if a map holds a non-empty table at key
+--- @param map table
+--- @param key any
+--- @return boolean
+function M.has(map, key)
+	local value = map and map[key]
+	return value ~= nil and next(value) ~= nil
+end
+
 -- debounce timers
 local timers = {}
 

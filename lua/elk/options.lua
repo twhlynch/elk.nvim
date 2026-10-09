@@ -8,6 +8,13 @@ local M = {}
 --- @field permit string | string[] disable diagnostics for this policy set
 --- @field trap_aliases string | table<string, integer> | nil override trap aliases to parse
 --- @field completion boolean enable keyword completion
+--- @field listing Elk.Options.listing listing display options
+
+--- @class Elk.Options.listing
+--- @field enabled boolean show listing info left of line numbers
+--- @field address boolean show address column
+--- @field hex boolean show hex column
+--- @field binary boolean show binary column
 
 --- @type Elk.Options.options
 M.options = {
@@ -18,6 +25,12 @@ M.options = {
 	permit = {},
 	trap_aliases = nil,
 	completion = true,
+	listing = {
+		enabled = true,
+		address = true,
+		hex = true,
+		binary = true,
+	},
 }
 
 --- sets plugin options keeping defaults if unspecified
@@ -107,6 +120,26 @@ function M.validate()
 
 	if type(M.options.completion) ~= "boolean" then
 		return error("option 'completion' must be a boolean")
+	end
+
+	if type(M.options.listing) ~= "table" then
+		return error("option 'listing' must be a table")
+	end
+
+	if type(M.options.listing.enabled) ~= "boolean" then
+		return error("option 'listing.enabled' must be a boolean")
+	end
+
+	if type(M.options.listing.address) ~= "boolean" then
+		return error("option 'listing.address' must be a boolean")
+	end
+
+	if type(M.options.listing.hex) ~= "boolean" then
+		return error("option 'listing.hex' must be a boolean")
+	end
+
+	if type(M.options.listing.binary) ~= "boolean" then
+		return error("option 'listing.binary' must be a boolean")
 	end
 
 	-- validate binary exists
